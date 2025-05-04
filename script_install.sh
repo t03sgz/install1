@@ -167,26 +167,4 @@ chmod +x "$HOME/.xinitrc"
 # 11. Entorno Zsh init
 echo 'eval "$(starship init zsh)"' >> "$HOME/.zshrc"
 
-# 12. Instalar y configurar UFW
-sudo apt install -y ufw
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow ssh          # (Opcional)
-sudo ufw enable
-
-# 13. Instalar y configurar Fail2Ban
-sudo apt install -y fail2ban
-sudo systemctl enable --now fail2ban
-sudo tee /etc/fail2ban/jail.local > /dev/null << 'EOF'
-[DEFAULT]
-backend = systemd
-bantime  = 3600
-maxretry = 5
-
-[sshd]
-enabled = false
-# enabled = true
-EOF
-sudo systemctl restart fail2ban
-
 echo "¡Listo! Cierra sesión y selecciona 'BSPWM Custom' en LightDM para comenzar."
