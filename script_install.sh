@@ -1,170 +1,89 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-# Variables
-POLYBAR_DIR="$HOME/.config/polybar"
-PICOM_DIR="$HOME/.config/picom"
-ROFI_DIR="$HOME/.config/rofi"
-BSPWM_DIR="$HOME/.config/bspwm"
-SXHKD_DIR="$HOME/.config/sxhkd"
-STARSHIP_DIR="$HOME/.config/starship"
+# Actualiza el sistema
+sudo apt update && sudo apt upgrade -y
 
-# 1. Actualizar e instalar paquetes base
-sudo apt update
-sudo apt install -y \
-  xfce4-core lightdm \
-  bspwm sxhkd lemonbar \
-  polybar picom rofi \
-  zsh curl git wget build-essential net-tools \
-  nmap wireshark john hashcat binwalk \
-  python3 python3-pip openvpn jq fzf tmux \
-  network-manager
+# Instala Xorg y utilidades básicas
+sudo apt install -y xorg xinit git curl wget unzip locales
 
-# 2. Habilitar NetworkManager
-sudo systemctl enable --now NetworkManager
+# Configura el teclado a español
+sudo localectl set-x11-keymap es
 
-# 3. Zsh + Starship
-if ! command -v starship &>/dev/null; then
-  curl -sS https://starship.rs/install.sh | sh -s -- -y
-fi
-chsh -s "$(which zsh)" || true
+# Instala los componentes principales
+sudo apt install -y bspwm sxhkd kitty tmux rofi feh picom polybar zsh neovim python3-pip
 
-# 4. Crear config dirs
-mkdir -p "$POLYBAR_DIR" "$PICOM_DIR" "$ROFI_DIR" \
-         "$BSPWM_DIR" "$SXHKD_DIR" "$STARSHIP_DIR"
+# Instala dependencias para Neovim (LSP, Treesitter, Telescope, Startify)
+pip3 install pynvim
+nvim --headless "+Lazy! sync" +qa # Prepara Lazy.nvim si lo usas
 
-# 5. starship.toml
-cat > "$STARSHIP_DIR/starship.toml" << 'EOF'
-# Minimal Gruvbox Dark prompt
-add_newline = false
-format = "\$character \$git_branch \$status"
-[character]
-success_symbol = "[➜](bold green)"
-error_symbol = "[➜](bold red)"
+# Instala Pywal y Starship
+sudo apt install -y python3-pywal
+curl -sS https://starship.rs/install.sh | sh -s -- -y
+
+# Instala fm6000 (fetch)
+wget https://github.com/6n4k0n/fm6000/releases/latest/download/fm6000-linux-amd64 -O ~/fm6000
+chmod +x ~/fm6000
+sudo mv ~/fm6000 /usr/local/bin/
+
+# Cambia la shell a zsh
+chsh -s $(which zsh)
+
+# Crea las carpetas de configuración
+mkdir -p ~/.config/{bspwm,sxhkd,kitty,polybar,picom,rofi,tmux,starship,neovim,wal}
+
+# Copia archivos de configuración de ejemplo
+cp /usr/share/doc/bspwm/examples/bspwmrc ~/.config/bspwm/bspwmrc
+cp /usr/share/doc/bspwm/examples/sxhkdrc ~/.config/sxhkd/sxhkdrc
+
+# Haz ejecutable el archivo bspwmrc
+chmod +x ~/.config/bspwm/bspwmrc
+
+# Configuración básica de picom y polybar (puedes personalizar después)
+echo -e "[general]\nbackend = \"glx\"\nvsync = true\n" > ~/.config/picom/picom.conf
+echo -e "[bar/example]\nwidth = 100%\nheight = 24\nmodules-center = date\n" > ~/.config/polybar/config.ini
+
+# Configuración básica de kitty
+echo -e "font_family      FiraCode\nfont_size        11.0\n" > ~/.config/kitty/kitty.conf
+
+# Configuración básica de tmux
+echo -e "set -g mouse on\nset -g history-limit 10000\n" > ~/.config/tmux/tmux.conf
+
+# Configuración básica de starship
+echo '[character]\nsuccess_symbol = "[➜](bold green)"\n' > ~/.config/starship.toml
+
+# Configuración básica de rofi
+echo -e "rofi.theme: ~/.cache/wal/colors-rofi-dark.rasi\n" > ~/.config/rofi/config.rasi
+
+# Configuración de fondo de pantalla con feh y pywal
+wal -i /usr/share/backgrounds/xfce/xfce-blue.jpg # Cambia por tu fondo preferido
+
+# Añade al bspwmrc el autostart de sxhkd, picom, polybar, feh y pywal
+cat << 'EOF' >> ~/.config/bspwm/bspwmrc
+
+# Lanzar sxhkd para atajos
+sxhkd &
+
+# Lanzar compositor picom
+picom --config ~/.config/picom/picom.conf &
+
+# Lanzar polybar
+polybar example &
+
+# Aplicar colores de pywal y fondo
+[[ -f "$HOME/.cache/wal/colors.sh" ]] && source "$HOME/.cache/wal/colors.sh"
+feh --bg-scale "$(< ~/.cache/wal/wal)" &
+
 EOF
 
-# 6. bspwmrc + sxhkdrc
-cat > "$BSPWM_DIR/bspwmrc" << 'EOF'
-#!/usr/bin/env bash
-# Autostart
-picom --config "$HOME/.config/picom/picom.conf" -b
-"$HOME/.config/polybar/launch.sh" &
-# Set wallpaper (if tienes feh instalado):
-# feh --bg-scale /ruta/a/fondo.jpg
-exec bspwm
-EOF
-chmod +x "$BSPWM_DIR/bspwmrc"
-
-cat > "$SXHKD_DIR/sxhkdrc" << 'EOF'
-# Switch desktop
-super + {1-9}
-    bspc desktop -f '^{}'
-
-# Terminal
-super + Return
-    alacritty
-
-# Rofi app launcher
-super + d
-    rofi -show drun
-
-# Rofi window switcher
-super + w
-    rofi -show window
-
-# Close window
-super + shift + q
-    bspc node -c
+# Configuración básica de Neovim (init.lua)
+mkdir -p ~/.config/nvim
+cat << 'EOF' > ~/.config/nvim/init.lua
+vim.cmd [[colorscheme onedark]]
+require('telescope').setup{}
+require('nvim-treesitter.configs').setup { highlight = { enable = true } }
+require('lspconfig').pyright.setup{}
+vim.g.startify_custom_header = { 'Minimalista listo!' }
 EOF
 
-# 7. Polybar config + launcher
-cat > "$POLYBAR_DIR/config" << 'EOF'
-[bar/main]
-width = 100%
-height = 24
-background = #2E3440
-foreground = #D8DEE9
-font-0 = "Iosevka Nerd Font:size=10;3"
-modules-left = bspwm
-modules-right = cpu memory wlan date
-
-[module/bspwm]
-type = internal/bspwm
-label-focused = %index%
-
-[module/cpu]
-type = internal/cpu
-format = CPU %percentage:2%%
-
-[module/memory]
-type = internal/memory
-format = RAM %used%/%total%MiB
-
-[module/wlan]
-type = internal/network
-interface = wlp2s0
-format-connected =  %essid%
-
-[module/date]
-type = internal/date
-date = %Y-%m-%d %H:%M
-EOF
-
-cat > "$POLYBAR_DIR/launch.sh" << 'EOF'
-#!/usr/bin/env bash
-killall -q polybar
-sleep 1
-polybar main &
-EOF
-chmod +x "$POLYBAR_DIR/launch.sh"
-
-# 8. Picom config
-cat > "$PICOM_DIR/picom.conf" << 'EOF'
-backend = "glx"
-vsync = true
-
-shadow = true
-shadow-radius = 7
-shadow-opacity = 0.4
-shadow-exclude = ["class_g = 'Polybar'"]
-
-corner-radius = 6
-
-blur-method = "kernel"
-blur-strength = 3
-
-fade = false
-EOF
-
-# 9. Rofi config
-cat > "$ROFI_DIR/config.rasi" << 'EOF'
-@import "rose-pine-dawn.rasi";
-configuration {
-  modi: "drun,window";
-  show-icons: true;
-  icon-theme: "Papirus";
-  width: 40%;
-  lines: 10;
-  padding: 5px;
-}
-EOF
-
-# 10. xinitrc para LightDM session
-SESSION_FILE="/usr/share/xsessions/custom-bspwm.desktop"
-sudo tee "$SESSION_FILE" > /dev/null << 'EOF'
-[Desktop Entry]
-Name=BSPWM Custom
-Exec=startx
-Type=Application
-EOF
-
-cat > "$HOME/.xinitrc" << 'EOF'
-#!/usr/bin/env bash
-exec bspwm
-EOF
-chmod +x "$HOME/.xinitrc"
-
-# 11. Entorno Zsh init
-echo 'eval "$(starship init zsh)"' >> "$HOME/.zshrc"
-
-echo "¡Listo! Cierra sesión y selecciona 'BSPWM Custom' en LightDM para comenzar."
+echo "Instalación completada. Reinicia tu sesión gráfica o ejecuta 'startx' para iniciar bspwm."
+echo "Personaliza tus atajos en ~/.config/sxhkd/sxhkdrc y tus temas con Pywal."
